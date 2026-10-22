@@ -5,13 +5,18 @@
 #
 #  WHAT YOU DO EVERY TIME: drop ONE zip (a source export or a package) into the top
 #  level of the repository, or into a folder named uploads. Then wait.
-#  WHAT IT DOES: finds the new zip, checks it is safe, unpacks it (skipping workflow
-#  files, secrets and junk), checks the file guard, commits the result, removes the zip,
-#  builds the web app, runs the type check and the tests, and builds the Android debug APK.
+#  WHAT IT DOES: finds EVERY zip waiting there (also one uploaded earlier, in another push),
+#  checks it is safe, unpacks it (skipping workflow files, secrets and junk), checks the file
+#  guard, commits the result, removes the zip, builds the web app, runs the type check and the
+#  tests, and builds the Android debug APK.
 #  The APK is under  Actions > the run > Artifacts > axon-debug-apk.
 #
+#  IT ALSO RUNS (and builds) when: this file itself is added or changed; you press
+#  Actions > "AXON: unpack, check, build" > Run workflow (with or without a zip path).
+#  A zip whose name starts with keep- is never unpacked.
+#
 #  SWITCHES (edit these two lines on GitHub if you want to change the behaviour)
-#   BUILD_ON_EVERY_PUSH  'false' = work only when a zip was dropped (or Run workflow)
+#   BUILD_ON_EVERY_PUSH  'false' = work only when a zip is waiting, this file changed, or Run workflow
 #                        'true'  = also build after every normal push (for example from AI Studio)
 #   STRICT_CHECKS        'false' = a failing type check or test is REPORTED but the APK is still built
 #                        'true'  = a failing type check or test stops the run before the APK
@@ -24,7 +29,7 @@ on:
   workflow_dispatch:
     inputs:
       zip_file:
-        description: 'Optional: path of a zip already in the repository (for example uploads/project.zip). Leave empty to only check and build.'
+        description: 'Optional: path of a zip already in the repository (for example uploads/project.zip). Leave empty to unpack every waiting zip, then check and build.'
         required: false
         default: ''
 
@@ -50,7 +55,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: 1. Look for a dropped zip
+      - name: 1. Look for waiting zips
         id: find
         env:
           EVENT: ${{ github.event_name }}
@@ -60,8 +65,11 @@ jobs:
           set -euo pipefail
           : > /tmp/zips.txt
           RUN=false
+          WHY=""
+          # Every zip that is waiting NOW at the top level or in uploads/ (not only the ones in this push).
+          find . -maxdepth 2 -type f -iname '*.zip' | sed 's|^\./||' | grep -E '^(uploads/)?[^/]+\.zip$' | grep -vE '(^|/)keep-' | sort > /tmp/zips.txt || true
           if [ "$EVENT" = "workflow_dispatch" ]; then
-            RUN=true
+            RUN=true; WHY="started by hand"
             if [ -n "$ZIP_INPUT" ]; then
               if [ -f "$ZIP_INPUT" ]; then printf '%s\n' "$ZIP_INPUT" > /tmp/zips.txt
               else echo "::error::The file '$ZIP_INPUT' is not in the repository."; exit 1; fi
@@ -72,24 +80,27 @@ jobs:
             else
               git -c core.quotepath=false show --name-only --diff-filter=AM --format= "$GITHUB_SHA" > /tmp/changed.txt
             fi
-            grep -iE '^(uploads/)?[^/]+\.zip$' /tmp/changed.txt > /tmp/zips.txt || true
-            if [ -s /tmp/zips.txt ] || [ "$BUILD_ON_EVERY_PUSH" = "true" ]; then RUN=true; fi
+            if [ -s /tmp/zips.txt ]; then RUN=true; WHY="a zip is waiting"; fi
+            if grep -qx '.github/workflows/axon.yml' /tmp/changed.txt; then RUN=true; WHY="${WHY:+$WHY; }this workflow file was added or changed"; fi
+            if [ "$BUILD_ON_EVERY_PUSH" = "true" ]; then RUN=true; WHY="${WHY:+$WHY; }BUILD_ON_EVERY_PUSH is true"; fi
           fi
           echo "run=$RUN" >> "$GITHUB_OUTPUT"
           if [ -s /tmp/zips.txt ]; then
-            echo "Dropped zip(s):"; cat /tmp/zips.txt
+            echo "Waiting zip(s):"; cat /tmp/zips.txt
             echo "has_zips=true" >> "$GITHUB_OUTPUT"
           else
             echo "has_zips=false" >> "$GITHUB_OUTPUT"
-            if [ "$RUN" = "true" ]; then echo "No zip dropped: checking and building what is already here."
-            else echo "No zip was dropped in this push, so there is nothing to do. (Set BUILD_ON_EVERY_PUSH to 'true' to build every push.)"; fi
+            echo "No zip is waiting."
           fi
+          if [ "$RUN" = "true" ]; then echo "Working because: $WHY"
+          else echo "Nothing to do in this push: no zip waiting, this file unchanged. (Set BUILD_ON_EVERY_PUSH to 'true' to build every push.)"; fi
           {
             echo "## AXON run"
-            if [ -s /tmp/zips.txt ]; then echo "Dropped zip(s): $(tr '\n' ' ' < /tmp/zips.txt)"; else echo "Dropped zip(s): none"; fi
+            echo "Reason: ${WHY:-nothing to do}"
+            if [ -s /tmp/zips.txt ]; then echo "Waiting zip(s): $(tr '\n' ' ' < /tmp/zips.txt)"; else echo "Waiting zip(s): none"; fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: 2. Unpack the zip safely
+      - name: 2. Unpack the zips safely
         if: steps.find.outputs.has_zips == 'true'
         run: |
           set -euo pipefail
@@ -174,10 +185,18 @@ jobs:
           if len(skipped) > 12:
               print('  ... and %d more skipped' % (len(skipped) - 12))
           PYEND
+          : > /tmp/unpack-log.txt
+          : > /tmp/refused.txt
           while IFS= read -r Z; do
             echo "------------------------------------------------------------"
-            python3 /tmp/unpack.py "$Z" | tee -a /tmp/unpack-log.txt
-            rm -f -- "$Z"
+            if python3 /tmp/unpack.py "$Z" > /tmp/one.log 2>&1; then
+              cat /tmp/one.log | tee -a /tmp/unpack-log.txt
+              rm -f -- "$Z"
+            else
+              cat /tmp/one.log | tee -a /tmp/unpack-log.txt
+              echo "::error::$Z was REFUSED (see the line starting UNPACK REFUSED). Nothing from it was applied; it stays in the repository. Delete or fix it."
+              echo "$Z" >> /tmp/refused.txt
+            fi
           done < /tmp/zips.txt
           { echo; echo '```'; cat /tmp/unpack-log.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
 
@@ -303,3 +322,13 @@ jobs:
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
+
+      - name: 11. Report refused zips
+        if: steps.find.outputs.has_zips == 'true' && always()
+        run: |
+          if [ -s /tmp/refused.txt ]; then
+            { echo; echo "### REFUSED zip(s) - still in the repository, delete or fix them:"; cat /tmp/refused.txt; } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::These zips were refused: $(tr '\n' ' ' < /tmp/refused.txt)"
+            exit 1
+          fi
+          echo "All waiting zips were unpacked."
