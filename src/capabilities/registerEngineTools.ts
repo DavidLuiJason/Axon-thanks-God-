@@ -19,6 +19,11 @@ import { SPLIT_TIP_DESCRIPTOR } from '../tools/engines/finance/splitTip';
 import { IMAGE_CONVERT_DESCRIPTOR } from '../tools/engines/images/convertPlan';
 import { HTML_TEXT_DESCRIPTOR } from '../tools/engines/text/htmlText';
 import { MARKDOWN_DESCRIPTOR } from '../tools/engines/text/markdown';
+import { SUMMARIZER_DESCRIPTOR } from '../tools/engines/text/summarize';
+import { DOCUMENT_READER_DESCRIPTOR } from '../tools/engines/files/documentRead';
+import { FILE_CONVERTER_DESCRIPTOR } from '../tools/engines/files/fileConvertPlan';
+import { BATCH_CONVERT_DESCRIPTOR } from '../tools/engines/files/batchPlan';
+import { MY_DICTIONARY_DESCRIPTOR } from '../tools/engines/dictionary/userDictionary';
 import { TEXT_FORMATS_DESCRIPTOR } from '../tools/engines/text/textFormats';
 
 export const ENGINE_DESCRIPTORS = [
@@ -28,6 +33,7 @@ export const ENGINE_DESCRIPTORS = [
   DEVICE_PROFILE_DESCRIPTOR, FILE_COMPARE_DESCRIPTOR, FILE_INSPECT_DESCRIPTOR, ZIP_TOOL_DESCRIPTOR,
   LOAN_DESCRIPTOR, SPLIT_TIP_DESCRIPTOR, IMAGE_CONVERT_DESCRIPTOR,
   HTML_TEXT_DESCRIPTOR, MARKDOWN_DESCRIPTOR, TEXT_FORMATS_DESCRIPTOR,
+  SUMMARIZER_DESCRIPTOR, DOCUMENT_READER_DESCRIPTOR, FILE_CONVERTER_DESCRIPTOR, BATCH_CONVERT_DESCRIPTOR, MY_DICTIONARY_DESCRIPTOR,
 ] as const;
 
 const NOT_BUILT_NOTE = 'Opens from the Tools menu once its screen exists; chat control arrives with the brain.';

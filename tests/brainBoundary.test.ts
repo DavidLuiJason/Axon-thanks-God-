@@ -12,6 +12,10 @@ const ALLOWED_BRAIN_IMPORTERS = [
   'src/components/CreditsModal.tsx',
   // Dictionary screen: reads only the dictionary data layer (lookups, word book, headword picker), never the chat pipeline. Approved 2026-10-17.
   'src/components/DictionaryScreen.tsx',
+  // My Dictionary screen: reads only the dictionary data layer (getDictionary) to ask whether a word is already in the core dictionary; never the chat pipeline. Proposed by the Director 2026-10-22 (same kind of access as the Dictionary screen); the owner approves by merging.
+  'src/components/toolScreens/MyDictionaryScreen.tsx',
+  // My Dictionary engine adapter: implements the brain's KnowledgeBackend contract (src/brain/knowledge/slot.ts) so the owner's own words can sit in a second knowledge slot; it reads and implements that contract only, it never touches the chat pipeline. Required by job C18; proposed by the Director 2026-10-22, the owner approves by merging.
+  'src/tools/engines/dictionary/userDictionaryBackend.ts',
   'src/services/axonBrainInterface.ts',
 ] as const;
 

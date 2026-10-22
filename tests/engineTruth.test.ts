@@ -54,7 +54,7 @@ function main(): void {
   };
   for (const tool of available) assert(registryEntryExists(tool.id), `available catalog tool has a registry entry: ${tool.id}`);
 
-  assert(CATALOG_TOOLS.some((tool) => tool.id === 'file-compare' && tool.name === 'File Compare' && tool.description === 'Compare any two files and see how many differences there are and where.' && tool.groupId === 'files-convert' && tool.status === 'coming-soon'), 'File Compare has the exact requested catalog entry');
+  assert(CATALOG_TOOLS.some((tool) => tool.id === 'file-compare' && tool.name === 'File Compare' && tool.description === 'Compare any two files and see how many differences there are and where.' && tool.groupId === 'files-convert' && tool.status === 'available'), 'File Compare has the exact requested catalog entry');
   console.log(`=== engine truth tests passed: ${checks} checks ===`);
 }
 
